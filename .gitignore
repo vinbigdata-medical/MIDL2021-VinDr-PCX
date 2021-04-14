@@ -144,10 +144,9 @@ dmypy.json
 
 ### vscode ###
 .vscode/*
-annotations_cls_1503/*
-annotations_cls_1803/*
 wandb/*
 experiment/*
+*train_cfg.json
 *.code-workspace
 *.onnx
 *.ckpt

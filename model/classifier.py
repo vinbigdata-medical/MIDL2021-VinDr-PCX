@@ -21,24 +21,24 @@ from utils.confidence_interval import boostrap_ci
 class Pediatric_Classifier():
 
     def __init__(self, cfg, loss_func, metrics=None):
-        """CheXpert class contains all functions used for training and testing our models
+        """Pediatric_Classifier class used to train and evaluate model performance
 
         Args:
-            cfg (dict): configuration file.
-            loss_func (torch.nn.Module): loss function of the model.
-            metrics (dict, optional): metrics use to evaluate model performance. Defaults to None.
+            cfg: contain configuration.
+            loss_func: Loss function.
+            metrics (dict, optional): dictionary contains evaluation metrics. Defaults to None.
         """
         self.cfg = cfg
+
         if self.cfg.type == 'pediatric':
             self.cfg.num_classes = 13*[1]
-        elif self.cfg.type == 'sub_pediatric':
-            self.cfg.num_classes = 10*[1]
         elif self.cfg.type == 'chexmic':
             self.cfg.num_classes = 14*[1]
         else:
             self.cfg.num_classes = [1]
         self.device = get_device(self.cfg.device)
-        self.model, self.childs_cut = get_models(self.cfg)
+        self.model = get_models(self.cfg)
+
         if self.cfg.ensemble == 'stacking':
             self.stacking_model = Stacking(len(self.model))
             if os.path.isfile(self.cfg.ckp_stack):
@@ -47,37 +47,23 @@ class Pediatric_Classifier():
                 self.stacking_model.to(self.device)
             self.stacking_model.freeze()
         self.loss_func = loss_func
+
         if metrics is not None:
             self.metrics = metrics
             self.metrics['loss'] = self.loss_func
         else:
             self.metrics = {'loss': self.loss_func}
+
         if cfg.parallel:
             self.model = torch.nn.DataParallel(self.model)
         self.model.to(self.device)
-
         self.thresh_val = torch.Tensor(
             [0.5]*len(self.cfg.num_classes)).float().to(self.device)
 
-    def freeze_backbone(self):
-        """Freeze model backbone
-        """
-        ct = 0
-        if self.cfg.parallel:
-            model_part = self.model.module
-        else:
-            model_part = self.model
-
-        loop = model_part.children() if len(list(model_part.children())
-                                            ) > 1 else list(model_part.children())[0].children()
-
-        for child in loop:
-            ct += 1
-            if ct < self.childs_cut:
-                for param in child.parameters():
-                    param.requires_grad = False
-
     def save_backbone(self, ckp_path):
+        """
+        Save model backbone to ckp_path.
+        """
         if self.cfg.parallel:
             model_part = self.model.module
         else:
@@ -89,6 +75,9 @@ class Pediatric_Classifier():
             save_resnet_backbone(model_part, ckp_path)
 
     def load_backbone(self, ckp_path, strict=True):
+        """
+        Load model backbone to ckp_path.
+        """
         if self.cfg.parallel:
             model_part = self.model.module
         else:
@@ -100,23 +89,14 @@ class Pediatric_Classifier():
             load_resnet_backbone(model_part, ckp_path, self.device, strict)
 
     def load_ckp(self, ckp_path, strict=True):
-        """Load checkpoint
-
-        Args:
-            ckp_path (str): path to checkpoint
-
-        Returns:
-            int, int: current epoch, current iteration
+        """
+        Load model from ckp_path. 
         """
         return load_ckp(self.model, ckp_path, self.device, self.cfg.parallel, strict)
 
     def save_ckp(self, ckp_path, epoch, iter):
-        """Save checkpoint
-
-        Args:
-            ckp_path (str): path to saved checkpoint
-            epoch (int): current epoch
-            iter (int): current iteration
+        """
+        Save model to ckp_path.
         """
         if os.path.exists(os.path.dirname(ckp_path)):
             torch.save(
@@ -170,18 +150,20 @@ class Pediatric_Classifier():
 
         Args:
             loader (torch.utils.data.Dataloader): a dataloader
-            ensemble (bool, optional): use FAEL for prediction. Defaults to False.
+            cal_loss (bool): whether to calculate the loss. Defaults to True
 
         Returns:
-            torch.Tensor, torch.Tensor: prediction, labels
+            torch.Tensor, torch.Tensor, torch.Tensor: prediction, labels, loss value
         """
         preds_stack = []
         labels_stack = []
-        running_loss = []
+        running_loss = AverageMeter()
         ova_len = loader.dataset.n_data
+
         loop = tqdm.tqdm(enumerate(loader), total=len(loader))
         for i, data in loop:
             imgs, labels = data[0].to(self.device), data[1].to(self.device)
+
             if self.cfg.tta:
                 # imgs = torch.cat(imgs, dim=0)
                 list_imgs = [imgs[:, j] for j in range(imgs.shape[1])]
@@ -193,19 +175,22 @@ class Pediatric_Classifier():
                 preds = torch.stack(list_preds, dim=0).mean(dim=0)
             else:
                 preds = self.predict(imgs)
-            iter_len = imgs.size()[0]
             preds_stack.append(preds)
             labels_stack.append(labels)
+
             if cal_loss:
-                running_loss.append(self.metrics['loss'](
-                    preds, labels).item()*iter_len/ova_len)
+                # running_loss.append(self.metrics['loss'](
+                #     preds, labels).item()*iter_len/ova_len)
+                running_loss.update(self.metrics['loss'](
+                    preds, labels).item(), imgs.shape[0])
+
         preds_stack = torch.cat(preds_stack, 0)
         labels_stack = torch.cat(labels_stack, 0)
-        running_loss = sum(running_loss)
-        return preds_stack, labels_stack, running_loss
+
+        return preds_stack, labels_stack, running_loss.avg
 
     def train(self, train_loader, val_loader, epochs=10, iter_log=100, use_lr_sch=False, resume=False, ckp_dir='./experiment/checkpoint',
-              eval_metric='loss'):
+              eval_metric='auc'):
         """Run training
 
         Args:
@@ -216,12 +201,10 @@ class Pediatric_Classifier():
             use_lr_sch (bool, optional): use learning rate scheduler. Defaults to False.
             resume (bool, optional): resume training process. Defaults to False.
             ckp_dir (str, optional): path to checkpoint directory. Defaults to './experiment/checkpoint'.
-            writer (torch.utils.tensorboard.SummaryWriter, optional): tensorboard summery writer. Defaults to None.
             eval_metric (str, optional): name of metric for validation. Defaults to 'loss'.
         """
         wandb.init(name=self.cfg.log_dir,
-                   project='Pediatric Multi-label Classifier',
-                   entity='dolphin')
+                   project='Pediatric Multi-label Classifier')
 
         optimizer = get_optimizer(self.model.parameters(), self.cfg)
 
@@ -276,7 +259,7 @@ class Pediatric_Classifier():
                         with torch.cuda.amp.autocast():
                             preds = self.model(imgs)
                             loss = self.metrics['loss'](preds, labels)
-                
+
                     else:
                         preds = self.model(imgs)
                         loss = self.metrics['loss'](preds, labels)
@@ -343,11 +326,12 @@ class Pediatric_Classifier():
         """Run testing
 
         Args:
-            loader (torch.utils.data.Dataloader): dataloader use for testing
-            ensemble (bool, optional): use FAEL for prediction. Defaults to False.
+            loader (torch.utils.data.Dataloader): dataloader use for testing.
+            get_ci (bool, optional): whether to calculate the confidence interval. Defaults to False.
+            n_boostrap (int, optional): number of Bootstrap samples. Defaults to 10000.
 
         Returns:
-            dict: metrics use to evaluate model performance.
+            dict: dictionary of evaluated metrics.
         """
         preds_stack, labels_stack, running_loss = self.predict_loader(
             loader, cal_loss=True)
@@ -362,6 +346,11 @@ class Pediatric_Classifier():
         return running_metrics
 
     def thresholding(self, loader):
+        """Run thresholding using Youden's J statistic.
+
+        Args:
+            loader (torch.utils.data.Dataloader): dataloader use for thresholding.
+        """
         auc_opt = AUC_ROC()
         preds, labels, _ = self.predict_loader(loader)
         thresh_val = auc_opt(preds, labels, thresholding=True)
@@ -369,19 +358,25 @@ class Pediatric_Classifier():
         self.thresh_val = torch.Tensor(thresh_val).float().cuda()
 
     def eval_CI(self, labels, preds, n_boostrap=1000, csv_path=None):
-
+        """
+        Calculate confidence interval using Bootstrap Sampling.
+        """
         return boostrap_ci(labels, preds, self.metrics, n_boostrap, self.thresh_val, csv_path)
 
-    def stacking(self, train_loader, val_loader, epochs=10, eval_metric='loss'):
-
+    def stacking(self, train_loader, val_loader, epochs=10, eval_metric='auc'):
+        """
+        Run stacking ensemble.
+        """
         if not isinstance(self.model, Ensemble):
             raise Exception("model must be Ensemble!!!")
 
         optimizer = get_optimizer(self.stacking_model.parameters(), self.cfg)
-        lambda1 = lambda epoch: 0.9 ** epoch
-        scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda1)
+        def lambda1(epoch): return 0.9 ** epoch
+        scheduler = torch.optim.lr_scheduler.LambdaLR(
+            optimizer, lr_lambda=lambda1)
 
-        os.makedirs(os.path.join('experiment', self.cfg.log_dir), exist_ok=True)
+        os.makedirs(os.path.join(
+            'experiment', self.cfg.log_dir), exist_ok=True)
         ckp_dir = os.path.join('experiment', self.cfg.log_dir, 'checkpoint')
         os.makedirs(ckp_dir, exist_ok=True)
 
@@ -412,7 +407,8 @@ class Pediatric_Classifier():
             metric_eval = running_metrics[eval_metric]
             s = s[:-1] + "- mean_"+eval_metric + \
                 " {:.3f}".format(metric_eval.mean())
-            torch.save(self.stacking_model.state_dict(), os.path.join(ckp_dir, 'latest.ckpt'))
+            torch.save(self.stacking_model.state_dict(),
+                       os.path.join(ckp_dir, 'latest.ckpt'))
             running_loss.reset()
             scheduler.step()
             print(s)

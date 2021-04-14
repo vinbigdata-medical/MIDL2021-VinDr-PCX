@@ -1,7 +1,8 @@
 {   
-    "train_csv": "annotations_cls_2203/train.csv",
-    "dev_csv": "annotations_cls_2203/val.csv",
-    "test_csv": "annotations_cls_2203/test.csv",
+    "data_dir":  "path to directory contains images",
+    "train_csv": "path to .csv file contains train labels",
+    "dev_csv": "path to .csv file contains val labels",
+    "test_csv": "path to .csv file contains test labels",
     "backbone": "dense",
     "id": "121",
     "device": 0,
@@ -13,7 +14,7 @@
     "smooth_mode": "pos",
     "lr": 1e-4,
     "batch_size": 16,
-    "long_side": 512,
+    "image_size": 512,
     "tta": false,
     "aug_type": "mixup",
     "beta": 1.0,
@@ -33,5 +34,5 @@
     "ckp_path": "",
     "ckp_stack": "",
     "disease_classes": ["Other opacity", "Reticulonodular opacity", "Peribronchovascular interstitial opacity", "Diffuse aveolar opacity", "Lung hyperinflation",
-        "Consolidation", "Bronchial thickening", "No finding", "Bronchitis", "Braocho-pneumonia", "Other disease", "Bronchiolitis", "Pneumonia"]
+        "Consolidation", "Bronchial thickening", "No finding", "Bronchitis", "Broncho-pneumonia", "Other disease", "Bronchiolitis", "Pneumonia"]
 }

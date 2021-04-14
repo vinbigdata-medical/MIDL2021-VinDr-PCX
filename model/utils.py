@@ -32,40 +32,38 @@ def get_models(cfg):
         ids = cfg.id
         ckp_paths = cfg.ckp_path
         models = Ensemble()
-        childs = []
         for i in range(len(backbones)):
             cfg.backbone = backbones[i]
             cfg.id = ids[i]
             cfg.ckp_path = ckp_paths[i]
-            model, childs_cut = get_model(cfg)
+            model= get_model(cfg)
             if os.path.isfile(cfg.ckp_path):
                 load_ckp(model, cfg.ckp_path, torch.device("cpu"), cfg.parallel, strict=True)
-            models.append(model), childs.append(childs_cut)
+            models.append(model)
         cfg.backbone = backbones
         cfg.id = ids
         cfg.ckp_path = ckp_paths
-        return models, childs
+        return models
 
 def get_model(cfg):
     if cfg.backbone == 'resnest':
-        model, childs_cut = get_resnest(cfg.id, cfg.num_classes, cfg.pretrained)
+        model = get_resnest(cfg.id, cfg.num_classes, cfg.pretrained)
         
     elif cfg.backbone == 'efficient' or cfg.backbone == 'efficientnet':
-        model, childs_cut = get_efficientnet(cfg.id, cfg.num_classes, cfg.pretrained)
+        model = get_efficientnet(cfg.id, cfg.num_classes, cfg.pretrained)
 
     elif cfg.backbone == 'dense' or cfg.backbone == 'densenet':
-        model, childs_cut = get_densenet(cfg.id, cfg.num_classes, cfg.pretrained)
+        model = get_densenet(cfg.id, cfg.num_classes, cfg.pretrained)
         
     elif cfg.backbone == 'resnet':
-        model, childs_cut = get_resnet(cfg.id, cfg.num_classes, cfg.pretrained)
+        model = get_resnet(cfg.id, cfg.num_classes, cfg.pretrained)
 
     else:
         raise Exception("Not support this model!!!!")
 
-    return model, childs_cut
+    return model
 
 def get_resnest(id_model, num_classes, pretrained=True):
-    childs_cut = 9
     if id_model == '50':
         pre_name = resnest50
     elif id_model == '101':
@@ -80,10 +78,9 @@ def get_resnest(id_model, num_classes, pretrained=True):
     num_features = model.fc.in_features
     model.fc = nn.Linear(in_features=num_features,
                         out_features=len(num_classes), bias=True)
-    return model, childs_cut
+    return model
 
 def get_densenet(id_model, num_classes, pretrained=True):
-    childs_cut = 2
     if id_model == '121':
         pre_name = densenet121
     elif id_model == '161':
@@ -98,10 +95,9 @@ def get_densenet(id_model, num_classes, pretrained=True):
     num_features = model.classifier.in_features
     model.classifier = nn.Linear(in_features=num_features,
                         out_features=len(num_classes), bias=True)
-    return model, childs_cut
+    return model
 
 def get_resnet(id_model, num_classes, pretrained=True):
-    childs_cut = 0
     if id_model == '34':
         pre_name = resnet34
     elif id_model == '18':
@@ -116,10 +112,9 @@ def get_resnet(id_model, num_classes, pretrained=True):
     num_features = model.fc.in_features
     model.fc = nn.Linear(in_features=num_features,
                         out_features=len(num_classes), bias=True)
-    return model, childs_cut
+    return model
 
 def get_efficientnet(id_model, num_classes, pretrained=True):
-    childs_cut = 6
     pre_name = 'efficientnet-'+id_model
     if pretrained:
         model = EfficientNet.from_pretrained(pre_name)
@@ -130,7 +125,7 @@ def get_efficientnet(id_model, num_classes, pretrained=True):
     num_features = model._fc.in_features
     model._fc = nn.Linear(in_features=num_features,
                             out_features=len(num_classes), bias=True)
-    return model, childs_cut
+    return model
 
 def load_ckp(model, ckp_path, device, parallel=False, strict=True):
     """Load checkpoint
