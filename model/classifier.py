@@ -1,17 +1,13 @@
-from numpy.core.shape_base import stack
-from numpy.lib.stride_tricks import broadcast_to
 import torch.nn as nn
 import numpy as np
 import time
 import cv2
 import os
 import shutil
-from torch.nn.functional import threshold
 import tqdm
-import pickle
 import torch
 import wandb
-from utils.metrics import AUC_ROC
+from utils.metrics import AUC
 from data.utils import transform
 from model.models import Stacking, save_dense_backbone, load_dense_backbone, save_resnet_backbone, load_resnet_backbone, Ensemble, AverageMeter
 from model.utils import get_models, get_str, tensor2numpy, get_optimizer, load_ckp, lrfn, get_metrics, get_device
@@ -351,7 +347,7 @@ class Pediatric_Classifier():
         Args:
             loader (torch.utils.data.Dataloader): dataloader use for thresholding.
         """
-        auc_opt = AUC_ROC()
+        auc_opt = AUC()
         preds, labels, _ = self.predict_loader(loader)
         thresh_val = auc_opt(preds, labels, thresholding=True)
         print(f"List optimal threshold {thresh_val}")

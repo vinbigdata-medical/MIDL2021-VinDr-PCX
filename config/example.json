@@ -32,7 +32,5 @@
     "iter_log": 50,
     "log_dir": "example",
     "ckp_path": "",
-    "ckp_stack": "",
-    "disease_classes": ["Other opacity", "Reticulonodular opacity", "Peribronchovascular interstitial opacity", "Diffuse aveolar opacity", "Lung hyperinflation",
-        "Consolidation", "Bronchial thickening", "No finding", "Bronchitis", "Broncho-pneumonia", "Other disease", "Bronchiolitis", "Pneumonia"]
+    "ckp_stack": ""
 }

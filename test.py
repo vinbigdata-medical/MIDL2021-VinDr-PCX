@@ -1,7 +1,3 @@
-import os
-os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
-
-# from data.dataset import ImageDataset_full
 from easydict import EasyDict as edict
 import json, os
 from model.classifier import Pediatric_Classifier

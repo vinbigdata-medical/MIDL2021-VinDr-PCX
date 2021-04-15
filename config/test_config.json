@@ -32,7 +32,5 @@
     "iter_log": 40,
     "log_dir": "",
     "ckp_path": "experiment/example/checkpoint/best.ckpt",
-    "ckp_stack": "experiment/stacking_example/checkpoint/best.ckpt",
-    "disease_classes": ["Other opacity", "Reticulonodular opacity", "Peribronchovascular interstitial opacity", "Diffuse aveolar opacity", "Lung hyperinflation",
-        "Consolidation", "Bronchial thickening", "No finding", "Bronchitis", "Brocho-pneumonia", "Other disease", "Bronchiolitis", "Pneumonia"]
+    "ckp_stack": "experiment/stacking_example/checkpoint/best.ckpt"
 }
